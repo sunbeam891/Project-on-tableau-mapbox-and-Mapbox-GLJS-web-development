@@ -1,0 +1,629 @@
+<!DOCTYPE HTML>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<script src="https://api.mapbox.com/mapbox-gl-js/v1.12.0/mapbox-gl.js"></script>
+<link href="https://api.mapbox.com/mapbox-gl-js/v1.12.0/mapbox-gl.css" rel="stylesheet">
+<link href="style11.css" rel="stylesheet">
+</head>
+
+<body>
+
+    <div id="map"></div>
+<div class="map-overlay" id="legend"></div>
+<div class="map-overlay1">
+    <fieldset>
+        <input
+            id="feature-filter"
+            type="text"
+            placeholder="Filter results by name"
+        />
+    </fieldset>
+    <div id="feature-listing" class="listing"></div>
+</div>
+
+
+
+<nav id="button"></nav>
+    
+    <script>
+    mapboxgl.accessToken = 'pk.eyJ1Ijoic2h1YmhhbXBhcnRoIiwiYSI6ImNrZ21icmJmaDA3dGozMW10dTRqdnhnOGIifQ.sPhroliOm5cnljeUMI3xhw';
+var map = new mapboxgl.Map({
+  container: 'map',
+  style: 'mapbox://styles/mapbox/streets-v10',
+  center: [144.96, -37.81],
+  zoom: 13,
+  pitch: 50
+});
+
+// Blink symbol Code
+
+var size = 80;
+
+// implementation of CustomLayerInterface to draw a pulsing dot icon on the map
+// see https://docs.mapbox.com/mapbox-gl-js/api/#customlayerinterface for more info
+var pulsingDot = {
+  width: size,
+  height: size,
+  data: new Uint8Array(size * size * 4),
+
+  // get rendering context for the map canvas when layer is added to the map
+  onAdd: function() {
+    var canvas = document.createElement('canvas');
+    canvas.width = this.width;
+    canvas.height = this.height;
+    this.context = canvas.getContext('2d');
+  },
+
+  // called once before every frame where the icon will be used
+  render: function() {
+    var duration = 1000;
+    var t = (performance.now() % duration) / duration;
+
+    var radius = (size / 2) * 0.3;
+    var outerRadius = (size / 2) * 0.7 * t + radius;
+    var context = this.context;
+
+    // draw outer circle
+    context.clearRect(0, 0, this.width, this.height);
+    context.beginPath();
+    context.arc(
+      this.width / 2,
+      this.height / 2,
+      outerRadius,
+      0,
+      Math.PI * 2
+    );
+    context.fillStyle = 'rgba(255, 200, 200,' + (1 - t) + ')';
+    context.fill();
+
+    // draw inner circle
+    context.beginPath();
+    context.arc(
+      this.width / 2,
+      this.height / 2,
+      radius,
+      0,
+      Math.PI * 2
+    );
+    context.fillStyle = 'rgba(255, 100, 100, 1)';
+    context.strokeStyle = 'white';
+    context.lineWidth = 2 + 4 * (1 - t);
+    context.fill();
+    context.stroke();
+
+    // update this image's data with data from the canvas
+    this.data = context.getImageData(
+      0,
+      0,
+      this.width,
+      this.height
+    ).data;
+
+    // continuously repaint the map, resulting in the smooth animation of the dot
+    map.triggerRepaint();
+
+    // return `true` to let the map know that the image was updated
+    return true;
+  }
+};
+
+// Text input filter
+
+var airports = [];
+
+var popup = new mapboxgl.Popup({
+  closeButton: false
+});
+
+var filterEl = document.getElementById('feature-filter');
+var listingEl = document.getElementById('feature-listing');
+
+function renderListings(features) {
+  var empty = document.createElement('p');
+  // Clear any existing listings
+  listingEl.innerHTML = '';
+  if (features.length) {
+    features.forEach(function(feature) {
+      var prop = feature.properties;
+      var item = document.createElement('a');
+      //item.href = prop.wikipedia;
+      item.target = '_blank';
+      item.textContent = prop.Feature_Na;
+      item.addEventListener('mouseover', function() {
+        // Highlight corresponding feature on the map
+        popup
+          .setLngLat(feature.geometry.coordinates)
+          .setText(
+            feature.properties.Feature_Na 
+            
+          )
+          .addTo(map);
+      });
+      item.addEventListener('click', function () {
+                // Geographic coordinates of the LineString
+                /*var coordinates =feature.geometry.coordinates;
+
+                // Pass the first coordinates in the LineString to `lngLatBounds` &
+                // wrap each coordinate pair in `extend` to include them in the bounds
+                // result. A variation of this technique could be applied to zooming
+                // to the bounds of multiple Points or Polygon geomteries - it just
+                // requires wrapping all the coordinates with the extend method.
+                var bounds = coordinates.reduce(function (bounds, coord) {
+                    return bounds.extend(coord);
+                }, new mapboxgl.LngLatBounds(coordinates[0], coordinates[0]));
+
+                map.fitBounds(bounds, {
+                    padding: 20
+                });*/
+                map.flyTo({
+                center: feature.geometry.coordinates,
+                zoom: 17
+                });
+              
+            });
+      listingEl.appendChild(item);
+    });
+
+    // Show the filter input
+    filterEl.parentNode.style.display = 'block';
+  } else if (features.length === 0 && filterEl.value !== '') {
+    empty.textContent = 'No results found';
+    listingEl.appendChild(empty);
+  } else {
+    empty.textContent = 'Drag the map to populate Point of Interests (Should be enabled)';
+    listingEl.appendChild(empty);
+
+    // Hide the filter input
+    filterEl.parentNode.style.display = 'none';
+
+    // remove features filter
+    map.setFilter('Point of Interests', ['has', 'Feature_Na']);
+  }
+}
+
+function normalize(string) {
+  return string.trim().toLowerCase();
+}
+
+function getUniqueFeatures(array, comparatorProperty) {
+  var existingFeatureKeys = {};
+  // Because features come from tiled vector data, feature geometries may be split
+  // or duplicated across tile boundaries and, as a result, features may appear
+  // multiple times in query results.
+  var uniqueFeatures = array.filter(function(el) {
+    if (existingFeatureKeys[el.properties[comparatorProperty]]) {
+      return false;
+    } else {
+      existingFeatureKeys[el.properties[comparatorProperty]] = true;
+      return true;
+    }
+  });
+
+  return uniqueFeatures;
+}
+
+
+// On load Starts here
+
+
+map.on('load', function() {
+  // the code for adding a layer goes in here
+
+
+  map.addImage('pulsing-dot', pulsingDot, {
+    pixelRatio: 2
+  });
+
+  map.addSource('points', {
+    'type': 'geojson',
+    'data': {
+      'type': 'FeatureCollection',
+      'features': [{
+        'type': 'Feature',
+        'geometry': {
+          'type': 'Point',
+          'coordinates': [0, 0]
+        }
+      }]
+    }
+  });
+
+  var statusNames = ['Train Stations', 'Train Tracks', 'Point of Interests'];
+  var urls = ['mapbox://shubhamparth.b5wcsw2h', 'mapbox://shubhamparth.7iln8fny', 'mapbox://shubhamparth.55tes1zf'];
+  var slayers = ['trainstations-aaitco', 'train_corridor-duwbhj', 'POI-3qd0vh'];
+  let statusColors = ['blue', 'red', 'purple'];
+
+  //for (let i = 0; i < statusNames.length; i++) {
+
+
+  //Train Stations layer
+
+  let statusName0 = statusNames[0];
+  let urlis0 = urls[0];
+  let slayer0 = slayers[0];
+  let statuscolor0 = statusColors[0];
+  map.addLayer({
+    // the data for which layer and what style goes in here
+    id: statusName0,
+    type: 'circle',
+    source: {
+      type: 'vector',
+      url: urlis0
+    },
+    'source-layer': slayer0,
+    "paint": {
+      "circle-color": statuscolor0
+    }
+    //'filter': ['==', 'STATIONTYP', "Premium"]
+  });
+  var link = document.createElement('a');
+  link.href = '#';
+  link.className = 'active';
+  link.textContent = statusName0;
+  var layers = document.getElementById('button');
+  layers.appendChild(link);
+
+  link.onclick = function(e) {
+    let clickedLayer = this.textContent;
+    e.preventDefault();
+    e.stopPropagation();
+
+    let visibility = map.getLayoutProperty(clickedLayer, 'visibility');
+
+    if (visibility !== 'none') {
+      map.setLayoutProperty(clickedLayer, 'visibility', 'none');
+      this.className = '';
+    } else {
+      this.className = 'active';
+      map.setLayoutProperty(clickedLayer, 'visibility', 'visible');
+    }
+  };
+
+
+  //Train Tracks layer 
+
+  let statusName1 = statusNames[1];
+  let urlis1 = urls[1];
+  let slayer1 = slayers[1];
+  let statuscolor1 = statusColors[1];
+  map.addLayer({
+    // the data for which layer and what style goes in here
+    id: statusName1,
+    type: 'line',
+    source: {
+      type: 'vector',
+      url: urlis1
+    },
+    'source-layer': slayer1,
+    "paint": {
+      "line-color": statuscolor1
+    }
+    //'filter': ['==', 'STATIONTYP', "Premium"]
+  });
+  var link = document.createElement('a');
+  link.href = '#';
+  link.className = 'active';
+  link.textContent = statusName1;
+  var layers = document.getElementById('button');
+  layers.appendChild(link);
+
+  link.onclick = function(e) {
+    let clickedLayer = this.textContent;
+    e.preventDefault();
+    e.stopPropagation();
+
+    let visibility = map.getLayoutProperty(clickedLayer, 'visibility');
+
+    if (visibility !== 'none') {
+      map.setLayoutProperty(clickedLayer, 'visibility', 'none');
+      this.className = '';
+    } else {
+      this.className = 'active';
+      map.setLayoutProperty(clickedLayer, 'visibility', 'visible');
+    }
+  };
+
+
+
+  //Point of interests layer
+
+  let statusName2 = statusNames[2];
+  let urlis2 = urls[2];
+  let slayer2 = slayers[2];
+  let statuscolor2 = statusColors[2];
+  map.addLayer({
+    // the data for which layer and what style goes in here
+    id: statusName2,
+    type: 'symbol',
+    source: {
+      type: 'vector',
+      url: urlis2
+    },
+    'source-layer': slayer2,
+    "layout": {
+      'icon-image': 'pulsing-dot',
+      'icon-allow-overlap': true,
+      "text-field": "{Feature_Na}",
+      "text-font": [
+        "DIN Offc Pro Medium",
+        "Arial Unicode MS Bold"
+      ],
+      "text-size": 7,
+      "text-offset": [0, 2]
+    }
+    //'filter': ['==', 'STATIONTYP', "Premium"]
+  });
+  var link = document.createElement('a');
+  link.href = '#';
+  link.className = '';
+  link.textContent = statusName2;
+  var layers = document.getElementById('button');
+  layers.appendChild(link);
+  map.setLayoutProperty(statusName2, 'visibility', 'none');
+
+  link.onclick = function(e) {
+    let clickedLayer = this.textContent;
+    e.preventDefault();
+    e.stopPropagation();
+
+    let visibility = map.getLayoutProperty(clickedLayer, 'visibility');
+
+    if (visibility !== 'none') {
+      map.setLayoutProperty(clickedLayer, 'visibility', 'none');
+      this.className = '';
+    } else {
+      this.className = 'active';
+      map.setLayoutProperty(clickedLayer, 'visibility', 'visible');
+    }
+  };
+
+
+
+
+
+
+  //Hover for Train stations
+
+  map.on('mouseenter', 'Train Stations', function() {
+    map.getCanvas().style.cursor = 'pointer';
+  });
+
+  map.on('mouseleave', 'Train Stations', function() {
+    map.getCanvas().style.cursor = '';
+    popup.remove();
+  });
+
+
+  //Hover for Train Tracks
+
+  map.on('mouseenter', 'Train Tracks', function() {
+    map.getCanvas().style.cursor = 'pointer';
+  });
+
+  map.on('mouseleave', 'Train Tracks', function() {
+    map.getCanvas().style.cursor = '';
+     popup.remove();
+  });
+
+  //Hover for POIS
+
+  map.on('mouseenter', 'Point of Interests', function() {
+    map.getCanvas().style.cursor = 'pointer';
+  });
+
+  /*map.on('mouseleave', 'Point of Interests', function() {
+    map.getCanvas().style.cursor = '';
+  });
+*/
+
+  var layers = ['Train Stations', 'Train Tracks'];
+  var colors = ['blue', 'red'];
+  for (i = 0; i < layers.length; i++) {
+    var layer = layers[i];
+    var color = colors[i];
+    var item = document.createElement('div');
+    var key = document.createElement('span');
+    key.className = 'legend-key';
+    key.style.backgroundColor = color;
+    var value = document.createElement('span');
+    value.innerHTML = layer;
+    item.appendChild(key);
+    item.appendChild(value);
+    legend.appendChild(item);
+  }
+  map.addControl(new mapboxgl.NavigationControl());
+
+
+
+  // Train Stations on click
+
+  map.on('click', 'Train Stations', function(e) {
+    new mapboxgl.Popup()
+      // the script in step 3 below must go in here 
+      .setLngLat(e.lngLat)
+      .setHTML('Station Name: ' + e.features[0].properties.STATIONNAM + '<br>' + 'Station Type: ' + e.features[0].properties.STATIONTYP + '<br>' + 'Zone: ' + e.features[0].properties.ZONES)
+      .addTo(map);
+  });
+
+//train stations on move of mouse
+
+map.on('mousemove', 'Train Stations', function(e) {
+    // Change the cursor style as a UI indicator.
+
+    // Populate the popup and set its coordinates based on the feature.
+    var feature = e.features[0];
+    popup
+      .setLngLat(feature.geometry.coordinates)
+      .setText(
+        'Station Name: ' + e.features[0].properties.STATIONNAM 
+      )
+      .addTo(map);
+  });
+
+  //Train Tracks on click
+
+  map.on('click', 'Train Tracks', function(e) {
+    new mapboxgl.Popup()
+      // the script in step 3 below must go in here 
+      .setLngLat(e.lngLat)
+      .setHTML('Segment type: ' + e.features[0].properties.SEGMENTNAM)
+      .addTo(map);
+  });
+
+
+// Train tracks on move 
+map.on('mousemove', 'Train Tracks', function(e) {
+    // Change the cursor style as a UI indicator.
+
+    // Populate the popup and set its coordinates based on the feature.
+    var feature = e.features[0];
+    popup
+      .setLngLat(e.lngLat)
+      .setText(
+        'Segment type: ' + e.features[0].properties.SEGMENTNAM 
+      )
+      .addTo(map);
+  });
+
+  // Point of interests on click
+
+  map.on('click', 'Point of Interests', function(e) {
+    new mapboxgl.Popup()
+      // the script in step 3 below must go in here 
+      .setLngLat(e.lngLat)
+      .setHTML('Name: ' + e.features[0].properties.Feature_Na + '<br>' + 'Theme: ' + e.features[0].properties.Theme + '<br>' + 'Sub_theme: ' + e.features[0].properties.Sub_Theme)
+      .addTo(map);
+  });
+
+
+  // 3D buildings
+
+  var layers = map.getStyle().layers;
+
+  var labelLayerId;
+  for (var i = 0; i < layers.length; i++) {
+    if (layers[i].type === 'symbol' && layers[i].layout['text-field']) {
+      labelLayerId = layers[i].id;
+      break;
+    }
+  }
+
+  map.addLayer({
+      'id': '3d-buildings',
+      'source': 'composite',
+      'source-layer': 'building',
+      'filter': ['==', 'extrude', 'true'],
+      'type': 'fill-extrusion',
+      'minzoom': 15,
+      'paint': {
+        'fill-extrusion-color': '#aaa',
+
+        // use an 'interpolate' expression to add a smooth transition effect to the
+        // buildings as the user zooms in
+        'fill-extrusion-height': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          15,
+          0,
+          15.05,
+          ['get', 'height']
+        ],
+        'fill-extrusion-base': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          15,
+          0,
+          15.05,
+          ['get', 'min_height']
+        ],
+        'fill-extrusion-opacity': 0.6
+      }
+    },
+    labelLayerId
+  );
+
+
+  //trial filter
+
+  map.on('moveend', function() {
+    var features = map.queryRenderedFeatures({
+      layers: ['Point of Interests']
+    });
+
+    if (features) {
+      var uniqueFeatures = getUniqueFeatures(features, 'Feature_Na');
+      // Populate features for the listing overlay.
+      renderListings(uniqueFeatures);
+
+      // Clear the input container
+      filterEl.value = '';
+
+      // Store the current features in sn `airports` variable to
+      // later use for filtering on `keyup`.
+      airports = uniqueFeatures;
+    }
+  });
+
+  map.on('mousemove', 'Point of Interests', function(e) {
+    // Change the cursor style as a UI indicator.
+    map.getCanvas().style.cursor = 'pointer';
+
+    // Populate the popup and set its coordinates based on the feature.
+    var feature = e.features[0];
+    popup
+      .setLngLat(feature.geometry.coordinates)
+      .setText(
+        feature.properties.Feature_Na
+      )
+      .addTo(map);
+  });
+
+  map.on('mouseleave', 'Point of Interests', function() {
+    map.getCanvas().style.cursor = '';
+    popup.remove();
+  });
+
+  filterEl.addEventListener('keyup', function(e) {
+    var value = normalize(e.target.value);
+
+    // Filter visible features that don't match the input value.
+    var filtered = airports.filter(function(feature) {
+      var name = normalize(feature.properties.Feature_Na);
+      
+      return name.indexOf(value) > -1; 
+    });
+   
+
+    // Populate the sidebar with filtered results
+    renderListings(filtered);
+
+    // Set the filter to populate features into the layer.
+    if (filtered.length) {
+      map.setFilter('Point of Interests', [
+        'match',
+        ['get', 'Feature_Na'],
+        filtered.map(function(feature) {
+          return feature.properties.Feature_Na;
+        }),
+        true,
+        false
+      ]);
+   
+    }
+  });
+
+  // Call this function on initialization
+  // passing an empty array to render an empty state
+  renderListings([]);
+
+
+
+});
+
+    </script>
+    
+    </body>
+    </html>

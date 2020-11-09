@@ -1,0 +1,376 @@
+<!DOCTYPE HTML>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<script src="https://api.mapbox.com/mapbox-gl-js/v1.12.0/mapbox-gl.js"></script>
+<link href="https://api.mapbox.com/mapbox-gl-js/v1.12.0/mapbox-gl.css" rel="stylesheet">
+<link href="style22.css" rel="stylesheet">
+</head>
+<body>
+<div id="map"></div>
+<div class="map-overlay" id="legend"></div>
+<nav id="button"></nav>
+<div class="map-overlay" id="title">
+  <h2>Point of Interests in Melbourne</h2>
+</div>
+<div class="map-overlay1">
+    <fieldset>
+        <input
+            id="feature-filter"
+            type="text"
+            placeholder="Filter results by name"
+        />
+    </fieldset>
+    <div id="feature-listing" class="listing"></div>
+</div>
+
+<script>
+
+mapboxgl.accessToken = 'pk.eyJ1Ijoic25vdzExMCIsImEiOiJja2Z2eXQ2MjcxZW4yMnJtdDM4d3hvcGpuIn0.rq89YS72BWaVmAxbicHp5g';
+var map = new mapboxgl.Map({
+  container: 'map', 
+  style: 'mapbox://styles/snow110/ckgoquq1k0v3z19qhza87rztf'
+});
+
+var airports = [];
+
+var popup = new mapboxgl.Popup({
+  closeButton: false
+});
+
+var filterEl = document.getElementById('feature-filter');
+var listingEl = document.getElementById('feature-listing');
+
+function renderListings(features) {
+  var empty = document.createElement('p');
+  // Clear any existing listings
+  listingEl.innerHTML = '';
+  if (features.length) {
+    features.forEach(function(feature) {
+      var prop = feature.properties;
+      var item = document.createElement('a');
+      //item.href = prop.wikipedia;
+      item.target = '_blank';
+      item.textContent = prop.Feature_Name;
+      item.addEventListener('mouseover', function() {
+        // Highlight corresponding feature on the map
+        popup
+          .setLngLat(feature.geometry.coordinates)
+          .setText(
+            feature.properties.Feature_Name 
+            
+          )
+          .addTo(map);
+      });
+      item.addEventListener('click', function () {
+                // Geographic coordinates of the LineString
+                /*var coordinates =feature.geometry.coordinates;
+
+                // Pass the first coordinates in the LineString to `lngLatBounds` &
+                // wrap each coordinate pair in `extend` to include them in the bounds
+                // result. A variation of this technique could be applied to zooming
+                // to the bounds of multiple Points or Polygon geomteries - it just
+                // requires wrapping all the coordinates with the extend method.
+                var bounds = coordinates.reduce(function (bounds, coord) {
+                    return bounds.extend(coord);
+                }, new mapboxgl.LngLatBounds(coordinates[0], coordinates[0]));
+
+                map.fitBounds(bounds, {
+                    padding: 20
+                });*/
+                map.flyTo({
+                center: feature.geometry.coordinates,
+                zoom: 17
+                });
+              
+            });
+      listingEl.appendChild(item);
+    });
+
+    // Show the filter input
+    filterEl.parentNode.style.display = 'block';
+  } else if (features.length === 0 && filterEl.value !== '') {
+    empty.textContent = 'No results found';
+    listingEl.appendChild(empty);
+  } else {
+    empty.textContent = 'Drag the map to populate results';
+    listingEl.appendChild(empty);
+
+    // Hide the filter input
+    filterEl.parentNode.style.display = 'none';
+
+    // remove features filter
+    map.setFilter('landmarkers-cotjmb', ['has', 'Feature_Name']);
+  }
+}
+function normalize(string) {
+  return string.trim().toLowerCase();
+}
+
+function getUniqueFeatures(array, comparatorProperty) {
+  var existingFeatureKeys = {};
+  // Because features come from tiled vector data, feature geometries may be split
+  // or duplicated across tile boundaries and, as a result, features may appear
+  // multiple times in query results.
+  var uniqueFeatures = array.filter(function(el) {
+    if (existingFeatureKeys[el.properties[comparatorProperty]]) {
+      return false;
+    } else {
+      existingFeatureKeys[el.properties[comparatorProperty]] = true;
+      return true;
+    }
+  });
+
+  return uniqueFeatures;
+}
+
+
+
+map.on('load', function() {
+  // the code for adding a layer goes in here
+  map.loadImage(
+    'https://img.icons8.com/color/72/hospital-2.png',
+    function (error, image) {
+      if (error) throw error;
+      map.addImage('health', image);});
+  map.loadImage(
+    'https://img.icons8.com/color/2x/shopping-mall.png',
+    function (error, image) {
+      if (error) throw error;
+      map.addImage('retail', image);});
+  map.loadImage(
+    'https://img.icons8.com/color/2x/city-buildings.png',
+    function (error, image) {
+      if (error) throw error;
+      map.addImage('mixed-use', image);});
+  map.loadImage(
+    'https://img.icons8.com/color/2x/church.png',
+    function (error, image) {
+      if (error) throw error;
+      map.addImage('worship', image);});
+  map.loadImage(
+    'https://img.icons8.com/color/2x/city-railway-station.png',
+    function (error, image) {
+      if (error) throw error;
+      map.addImage('transport', image);});
+  map.loadImage(
+    'https://img.icons8.com/color/2x/city-block.png',
+    function (error, image) {
+      if (error) throw error;
+      map.addImage('community', image);});
+   map.loadImage(
+    'https://img.icons8.com/color/2x/school-building.png',
+    function (error, image) {
+      if (error) throw error;
+      map.addImage('education', image);});
+   map.loadImage(
+    'https://img.icons8.com/color/2x/warehouse.png',
+    function (error, image) {
+      if (error) throw error;
+      map.addImage('warehouse', image);});
+  map.loadImage(
+    'https://img.icons8.com/color/2x/kaaba.png',
+    function (error, image) {
+      if (error) throw error;
+      map.addImage('assembly', image);});
+   map.loadImage(
+    'https://img.icons8.com/color/2x/national-park.png',
+    function (error, image) {
+      if (error) throw error;
+      map.addImage('park', image);});
+    map.loadImage(
+    'https://img.icons8.com/color/2x/company.png',
+    function (error, image) {
+      if (error) throw error;
+      map.addImage('office', image);});
+    map.loadImage(
+    'https://img.icons8.com/color/2x/skyscrapers.png',
+    function (error, image) {
+      if (error) throw error;
+      map.addImage('purpose', image);});
+  
+  map.addLayer({
+  // the data for which layer and what style goes in here
+  id: 'water_new',
+type: 'fill',
+source: {
+  type: 'vector',
+  url: 'mapbox://mapbox.mapbox-streets-v8'
+}, 
+'source-layer': 'water',
+"paint": {
+  "fill-color": "#0066FF",
+  "fill-opacity": 0.1
+}
+});
+
+map.addLayer({
+  // the data for which layer and what style goes in here
+  id: 'land_new',
+type: 'fill',
+source: {
+  type: 'vector',
+  url: 'mapbox://mapbox.mapbox-streets-v8'
+}, 
+'source-layer': 'landuse',
+"paint": {
+  "fill-color": "green",
+  "fill-opacity": 0.1
+}
+});
+  var statusNames = ['Health_Services', 'Retail','Mixed_Use','Place_of_Worship','Transport','Community_Use','Education_Center',
+  'Warehouse/Store', 'Place_Of_Assembly','Leisure/Recreation', 'Office','Purpose_Built'];
+  let statusColors = ['black', 'green', 'purple','red', 'blue', 'orange', 'black'];
+  var iconImages= ['health', 'retail', 'mixed-use', 'worship', 'transport', 'community', 'education', 'warehouse', 'assembly', 'park', 'office', 'purpose'];
+  for (let i = 0; i < statusNames.length; i++) {
+  let statusName = statusNames[i];
+  let statusColor = statusColors[i];
+  let iconImage = iconImages[i];
+  map.addLayer({
+  // the data for which layer and what style goes in here
+  id: statusName,
+type: 'symbol',
+source: {
+  type: 'vector',
+  url: 'mapbox://snow110.2wi0922z'
+}, 
+'source-layer': 'landmarkers-cotjmb',
+"layout":{
+  "icon-image": iconImage,
+  'icon-allow-overlap': true,
+  "text-field": "{Feature_Name}",
+  "text-font": [
+        "DIN Offc Pro Medium",
+        "Arial Unicode MS Bold"
+      ],
+      "text-size": 9,
+      "text-offset": [0, 2],
+  "icon-size": 0.3,
+  //"text-field": 'church'
+},
+ 'filter': ['==', 'Theme', statusName]
+});
+  // the map.addLayer function goes here
+  /*
+  let item = document.createElement('div');
+let key = document.createElement('span');
+key.className = 'legend-key';
+key.style.backgroundColor = statusColor;
+
+let value = document.createElement('span');
+value.innerHTML = statusName;
+item.appendChild(key);
+item.appendChild(value);
+legend.appendChild(item);
+*/
+var link = document.createElement('a');
+link.href = '#';
+link.className = 'active';
+link.textContent = statusName;
+
+var layers = document.getElementById('button');
+layers.appendChild(link);
+
+link.onclick = function (e) {
+  let clickedLayer = this.textContent;
+  e.preventDefault();
+  e.stopPropagation();
+
+  let visibility = map.getLayoutProperty(clickedLayer, 'visibility');
+
+  if (visibility !== 'none') {
+    map.setLayoutProperty(clickedLayer, 'visibility', 'none');
+    this.className = '';
+  } else {
+    this.className = 'active';
+    map.setLayoutProperty(clickedLayer, 'visibility', 'visible');
+  }
+};
+}
+
+//mouse move
+map.on('mousemove', function(e) {
+  // the code from steps 5-10 below MUST go in here
+  let buildinginfo = map.queryRenderedFeatures(e.point, {
+  layers: ['landmarkers-cotjmb']
+});
+if (buildinginfo.length > 0) {
+  document.getElementById('info').innerHTML = '<p>' + buildinginfo[0].properties.Sub_Theme+ 
+    '<p><em>' + buildinginfo[0].properties.Feature_Name + '</em></p>';
+} else {
+  document.getElementById('info').innerHTML = '<p>Hover over a shaded building for details.</p>';
+}
+});
+
+map.on('mouseenter', 'landmarkers-cotjmb', function() {
+  map.getCanvas().style.cursor = 'pointer';
+});
+
+map.on('moveend', function() {
+    var features = map.queryRenderedFeatures({
+      layers: ['landmarkers-cotjmb']
+    });
+
+    if (features) {
+      var uniqueFeatures = getUniqueFeatures(features, 'Feature_Name');
+      // Populate features for the listing overlay.
+      renderListings(uniqueFeatures);
+
+      // Clear the input container
+      filterEl.value = '';
+
+      // Store the current features in sn `airports` variable to
+      // later use for filtering on `keyup`.
+      airports = uniqueFeatures;
+    }
+  });
+  
+filterEl.addEventListener('keyup', function(e) {
+    var value = normalize(e.target.value);
+
+    // Filter visible features that don't match the input value.
+    var filtered = airports.filter(function(feature) {
+      var name = normalize(feature.properties.Feature_Name);
+      
+      return name.indexOf(value) > -1; 
+    });
+   
+
+    // Populate the sidebar with filtered results
+    renderListings(filtered);
+
+    // Set the filter to populate features into the layer.
+    if (filtered.length) {
+      map.setFilter('landmarkers-cotjmb', [
+        'match',
+        ['get', 'Feature_Name'],
+        filtered.map(function(feature) {
+          return feature.properties.Feature_Name;
+        }),
+        true,
+        false
+      ]);
+   
+    }
+  });
+  
+ renderListings([]);
+
+// Change it back to a pan icon when it leaves.
+map.on('mouseleave', 'landmarkers-cotjmb', function() {
+  map.getCanvas().style.cursor = '';
+});
+map.on('click', 'landmarkers-cotjmb', function(e) {
+  new mapboxgl.Popup()
+  // the script in step 3 below must go in here 
+  .setLngLat(e.lngLat)
+ .setHTML('Theme: ' + e.features[0].properties.Theme + '<br>' +"Sub Theme: "+ e.features[0].properties.Sub_Theme)
+ .addTo(map);
+});
+});
+map.addControl(new mapboxgl.NavigationControl());
+
+</script>
+
+</body>
+</html>
